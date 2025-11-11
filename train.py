@@ -7,6 +7,7 @@ from collections import defaultdict, deque
 import numpy as np
 import pickle
 import time
+import os
 
 import zip_array
 from config import CONFIG
@@ -148,6 +149,12 @@ class TrainPipeline:
 
     def run(self):
         """开始训练"""
+        # 确保数据目录存在
+        data_dir = CONFIG.get('data_dir', 'data')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+            print(f'已创建数据目录: {data_dir}')
+        
         try:
             for i in range(self.game_batch_num):
                 if not CONFIG['use_redis']:

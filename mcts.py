@@ -3,6 +3,7 @@
 
 import numpy as np
 import copy
+import pickle
 from config import CONFIG
 
 
@@ -83,12 +84,22 @@ class TreeNode(object):
 # 蒙特卡洛搜索树
 class MCTS(object):
 
-    def __init__(self, policy_value_fn, c_puct=5, n_playout=2000):
-        """policy_value_fn: 接收board的盘面状态，返回落子概率和盘面评估得分"""
+    def __init__(self, policy_value_fn, c_puct=5, n_playout=2000, batch_size=8):
+        """policy_value_fn: 接收board的盘面状态，返回落子概率和盘面评估得分
+        batch_size: 批量推理的批次大小，用于加速"""
         self._root = TreeNode(None, 1.0)
         self._policy = policy_value_fn
         self._c_puct = c_puct
         self._n_playout = n_playout
+        self._batch_size = batch_size
+        # 检查policy_value_fn是否支持批量推理
+        self._supports_batch = hasattr(policy_value_fn, '__self__') and hasattr(
+            getattr(policy_value_fn, '__self__', None), 'policy_value_batch')
+
+    def _fast_copy_state(self, state):
+        """快速状态复制，优先使用copy.deepcopy（对于复杂对象通常更快）"""
+        # 对于Board对象，deepcopy通常比pickle快
+        return copy.deepcopy(state)
 
     def _playout(self, state):
         """
@@ -127,9 +138,61 @@ class MCTS(object):
         state:当前游戏的状态
         temp:介于（0， 1]之间的温度参数
         """
-        for n in range(self._n_playout):
-            state_copy = copy.deepcopy(state)
-            self._playout(state_copy)
+        # 使用批量推理优化（如果支持）
+        if self._supports_batch and self._batch_size > 1:
+            # 批量版本：收集叶子节点，批量推理
+            leaf_states = []
+            leaf_nodes = []
+            pending_playouts = []
+            
+            for n in range(self._n_playout):
+                state_copy = self._fast_copy_state(state)
+                node = self._root
+                # 选择到叶子节点
+                while not node.is_leaf():
+                    action, node = node.select(self._c_puct)
+                    state_copy.do_move(action)
+                
+                # 检查游戏是否结束
+                end, winner = state_copy.game_end()
+                if end:
+                    # 游戏结束，直接更新
+                    if winner == -1:
+                        leaf_value = 0.0
+                    else:
+                        leaf_value = 1.0 if winner == state_copy.get_current_player_id() else -1.0
+                    node.update_recursive(-leaf_value)
+                else:
+                    # 收集叶子节点用于批量推理
+                    leaf_states.append(state_copy)
+                    leaf_nodes.append(node)
+                    pending_playouts.append((node, state_copy))
+                    
+                    # 当达到批次大小或到达最后一个playout时，进行批量推理
+                    if len(leaf_states) >= self._batch_size or n == self._n_playout - 1:
+                        if leaf_states:
+                            # 批量推理
+                            policy_obj = self._policy.__self__ if hasattr(self._policy, '__self__') else None
+                            if policy_obj and hasattr(policy_obj, 'policy_value_batch'):
+                                batch_results = policy_obj.policy_value_batch(leaf_states)
+                                for (node, state_copy), (action_probs, leaf_value) in zip(pending_playouts, batch_results):
+                                    node.expand(action_probs)
+                                    node.update_recursive(-leaf_value)
+                            else:
+                                # 回退到单次推理
+                                for (node, state_copy) in pending_playouts:
+                                    action_probs, leaf_value = self._policy(state_copy)
+                                    node.expand(action_probs)
+                                    node.update_recursive(-leaf_value)
+                            
+                            leaf_states = []
+                            leaf_nodes = []
+                            pending_playouts = []
+        else:
+            # 原始版本：单次推理
+            for n in range(self._n_playout):
+                state_copy = self._fast_copy_state(state)
+                self._playout(state_copy)
 
         # 跟据根节点处的访问计数来计算移动概率
         act_visits= [(act, node._n_visits)
@@ -155,8 +218,8 @@ class MCTS(object):
 # 基于MCTS的AI玩家
 class MCTSPlayer(object):
 
-    def __init__(self, policy_value_function, c_puct=5, n_playout=2000, is_selfplay=0):
-        self.mcts = MCTS(policy_value_function, c_puct, n_playout)
+    def __init__(self, policy_value_function, c_puct=5, n_playout=2000, is_selfplay=0, batch_size=8):
+        self.mcts = MCTS(policy_value_function, c_puct, n_playout, batch_size=batch_size)
         self._is_selfplay = is_selfplay
         self.agent = "AI"
 

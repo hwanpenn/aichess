@@ -798,12 +798,20 @@ class Game(object):
                 return winner
 
     # 使用蒙特卡洛树搜索开始自我对弈，存储游戏状态（状态，蒙特卡洛落子概率，胜负手）三元组用于神经网络训练
-    def start_self_play(self, player, is_shown=False, temp=1e-3):
+    def start_self_play(self, player, is_shown=False, temp=1e-3, show_delay=0.5):
         self.board.init_board()     # 初始化棋盘, start_player=1
         p1, p2 = 1, 2
         states, mcts_probs, current_players = [], [], []
         # 开始自我对弈
         _count = 0
+        if is_shown:
+            print("\n" + "="*50)
+            print("开始自动对弈（自我对弈）")
+            print("="*50)
+            self.graphic(self.board, "红方(AI)", "黑方(AI)")
+            if show_delay > 0:
+                time.sleep(show_delay)
+        
         while True:
             _count += 1
             if _count % 20 == 0:
@@ -811,7 +819,8 @@ class Game(object):
                 move, move_probs = player.get_action(self.board,
                                                      temp=temp,
                                                      return_prob=1)
-                print('走一步要花: ', time.time() - start_time)
+                elapsed = time.time() - start_time
+                print('走一步要花: ', elapsed)
             else:
                 move, move_probs = player.get_action(self.board,
                                                      temp=temp,
@@ -820,8 +829,22 @@ class Game(object):
             states.append(self.board.current_state())
             mcts_probs.append(move_probs)
             current_players.append(self.board.current_player_id)
+            
+            # 可视化：显示当前走子
+            if is_shown:
+                current_player_name = "红方(AI)" if self.board.current_player_id == 1 else "黑方(AI)"
+                move_str = move if isinstance(move, str) else str(move)
+                print(f"\n第 {_count} 步 - {current_player_name} 走子: {move_str}")
+            
             # 执行一步落子
             self.board.do_move(move)
+            
+            # 可视化：显示走子后的棋盘
+            if is_shown:
+                self.graphic(self.board, "红方(AI)", "黑方(AI)")
+                if show_delay > 0:
+                    time.sleep(show_delay)
+            
             end, winner = self.board.game_end()
             if end:
                 # 从每一个状态state对应的玩家的视角保存胜负信息
@@ -832,10 +855,14 @@ class Game(object):
                 # 重置蒙特卡洛根节点
                 player.reset_player()
                 if is_shown:
+                    print("\n" + "="*50)
                     if winner != -1:
-                        print("Game end. Winner is:", winner)
+                        winner_name = "红方(AI)" if winner == 1 else "黑方(AI)"
+                        print(f"对局结束！获胜方: {winner_name} (玩家ID: {winner})")
                     else:
-                        print('Game end. Tie')
+                        print('对局结束！和棋')
+                    print(f"总步数: {_count}")
+                    print("="*50 + "\n")
 
                 return winner, zip(states, mcts_probs, winner_z)
 

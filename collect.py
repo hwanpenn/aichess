@@ -53,10 +53,12 @@ class CollectPipeline:
         except:
             self.policy_value_net = PolicyValueNet()
             print('已加载初始模型')
+        # 启用批量推理以加速（从config读取batch_size）
         self.mcts_player = MCTSPlayer(self.policy_value_net.policy_value_fn,
                                       c_puct=self.c_puct,
                                       n_playout=self.n_playout,
-                                      is_selfplay=1)
+                                      is_selfplay=1,
+                                      batch_size=CONFIG.get('mcts_batch_size', 16))
 
     def get_equi_data(self, play_data):
         """左右对称变换，扩充数据集一倍，加速一倍训练速度"""
@@ -79,10 +81,24 @@ class CollectPipeline:
         return extend_data
 
     def collect_selfplay_data(self, n_games=1):
+        # 确保数据目录存在
+        data_dir = CONFIG.get('data_dir', 'data')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+            print(f'已创建数据目录: {data_dir}')
+        
         # 收集自我对弈的数据
         for i in range(n_games):
             self.load_model()  # 从本体处加载最新模型
-            winner, play_data = self.game.start_self_play(self.mcts_player, temp=self.temp, is_shown=False)
+            # 从配置读取是否显示可视化
+            is_shown = CONFIG.get('show_selfplay', False)
+            show_delay = CONFIG.get('show_delay', 0.5)
+            winner, play_data = self.game.start_self_play(
+                self.mcts_player, 
+                temp=self.temp, 
+                is_shown=is_shown,
+                show_delay=show_delay
+            )
             play_data = list(play_data)[:]
             self.episode_len = len(play_data)
             # 增加数据
@@ -132,7 +148,30 @@ class CollectPipeline:
                 print('batch i: {}, episode_len: {}'.format(
                     iters, self.episode_len))
         except KeyboardInterrupt:
-            print('\n\rquit')
+            print('\n\n收到停止信号（Ctrl+C），正在保存数据...')
+            # 确保数据已保存（collect_selfplay_data 中已经保存，这里再次确认）
+            if not CONFIG['use_redis']:
+                try:
+                    if os.path.exists(CONFIG['train_data_buffer_path']):
+                        with open(CONFIG['train_data_buffer_path'], 'rb') as f:
+                            data = pickle.load(f)
+                            print(f'数据已保存到: {CONFIG["train_data_buffer_path"]}')
+                            print(f'  总对局数: {data.get("iters", 0)}')
+                            print(f'  数据样本数: {len(data.get("data_buffer", []))}')
+                    else:
+                        print('警告：数据文件不存在')
+                except Exception as e:
+                    print(f'读取数据文件时出错: {e}')
+            else:
+                print(f'数据存储在Redis中 (host: {CONFIG["redis_host"]}, db: {CONFIG["redis_db"]})')
+                try:
+                    data_count = self.redis_cli.llen('train_data_buffer')
+                    iters = self.redis_cli.get('iters')
+                    print(f'  Redis中的数据样本数: {data_count}')
+                    print(f'  总对局数: {iters}')
+                except:
+                    pass
+            print('\n程序已安全退出')
 
 
 collecting_pipeline = CollectPipeline(init_model='current_policy.model')

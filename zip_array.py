@@ -43,19 +43,27 @@ def recovery_state_mcts_prob(tuple):
 
 def zip_array(array, data=0.):  # 压缩成稀疏数组
     zip_res = []
-    zip_res.append([len(array), len(array[0])])
+    # 第一个元素存储数组维度信息，第三个元素设为0作为标记
+    zip_res.append([len(array), len(array[0]), 0])
     for i in range(len(array)):
         for j in range(len(array[0])):
             if array[i][j] != data:
-                zip_res.append([i, j, array[i][j]])
-    return np.array(zip_res)
+                # 确保 array[i][j] 是标量，而不是数组
+                value = array[i][j]
+                if isinstance(value, np.ndarray):
+                    value = value.item()
+                elif hasattr(value, 'item'):
+                    value = value.item()
+                zip_res.append([i, j, value])
+    return np.array(zip_res, dtype=object)
 
 
 def recovery_array(array, data=0.):  # 恢复数组
     recovery_res = []
-    for i in range(array[0][0]):
-        recovery_res.append([data for i in range(array[0][1])])
+    # 第一个元素存储数组维度信息，忽略第三个元素（标记位）
+    for i in range(int(array[0][0])):
+        recovery_res.append([data for i in range(int(array[0][1]))])
     for i in range(1, len(array)):
         # print(len(recovery_res[0]))
-        recovery_res[array[i][0]][array[i][1]] = array[i][2]
+        recovery_res[int(array[i][0])][int(array[i][1])] = array[i][2]
     return np.array(recovery_res)

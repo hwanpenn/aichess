@@ -1,3 +1,7 @@
+import os
+# 隐藏pygame欢迎信息（可选）
+# os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+
 import pygame
 import sys
 import copy
@@ -38,9 +42,19 @@ class Human:
 
 
 if CONFIG['use_frame'] == 'paddle':
-    policy_value_net = PolicyValueNet(model_file='current_policy.model')
+    try:
+        policy_value_net = PolicyValueNet(model_file='current_policy.model')
+        print('已加载训练模型')
+    except:
+        policy_value_net = PolicyValueNet()
+        print('使用初始模型（未训练）')
 elif CONFIG['use_frame'] == 'pytorch':
-    policy_value_net = PolicyValueNet(model_file='current_policy.pkl')
+    try:
+        policy_value_net = PolicyValueNet(model_file='current_policy.pkl')
+        print('已加载训练模型')
+    except:
+        policy_value_net = PolicyValueNet()
+        print('使用初始模型（未训练）')
 else:
     print('暂不支持您选择的框架')
 

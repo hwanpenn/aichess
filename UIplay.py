@@ -43,14 +43,14 @@ class Human:
 
 if CONFIG['use_frame'] == 'paddle':
     try:
-        policy_value_net = PolicyValueNet(model_file='current_policy.model')
+        policy_value_net = PolicyValueNet(model_file=CONFIG['paddle_model_path'])
         print('已加载训练模型')
     except:
         policy_value_net = PolicyValueNet()
         print('使用初始模型（未训练）')
 elif CONFIG['use_frame'] == 'pytorch':
     try:
-        policy_value_net = PolicyValueNet(model_file='current_policy.pkl')
+        policy_value_net = PolicyValueNet(model_file=CONFIG['pytorch_model_path'])
         print('已加载训练模型')
     except:
         policy_value_net = PolicyValueNet()
@@ -91,7 +91,7 @@ board_list_init = [['红车', '红马', '红象', '红士', '红帅', '红士', 
 
 # 加载棋子被选中的图片
 fire_image = pygame.transform.smoothscale(pygame.image.load("imgs/fire.png").convert_alpha(), (width // 10, height // 10))
-fire_image.set_alpha(200)
+fire_image.set_alpha(150)  # 设置透明度，值越小越透明（0-255，255为完全不透明）
 
 # 制作一个从字符串到pygame.surface对象的映射
 str2image = {
@@ -223,7 +223,15 @@ player2 = MCTSPlayer(policy_value_net.policy_value_fn,
                      n_playout=2000,
                      is_selfplay=0)
 
-
+if CONFIG['player2'] == 'Human':
+    player2 = Human()
+elif CONFIG['player2'] == 'MCTS':
+    player2 = MCTSPlayer(policy_value_net.policy_value_fn,
+                         c_puct=5,
+                         n_playout=2000,
+                         is_selfplay=0)
+else:
+    print('暂不支持您选择的玩家')
 # player2 = Human()
 
 board.init_board(start_player)

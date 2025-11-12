@@ -174,14 +174,11 @@ class CollectPipeline:
             print('\n程序已安全退出')
 
 
-collecting_pipeline = CollectPipeline(init_model='current_policy.model')
-collecting_pipeline.run()
-
 if CONFIG['use_frame'] == 'paddle':
-    collecting_pipeline = CollectPipeline(init_model='current_policy.model')
+    collecting_pipeline = CollectPipeline(init_model=CONFIG['paddle_model_path'])
     collecting_pipeline.run()
 elif CONFIG['use_frame'] == 'pytorch':
-    collecting_pipeline = CollectPipeline(init_model='current_policy.pkl')
+    collecting_pipeline = CollectPipeline(init_model=CONFIG['pytorch_model_path'])
     collecting_pipeline.run()
 else:
     print('暂不支持您选择的框架')

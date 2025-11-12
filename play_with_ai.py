@@ -22,14 +22,14 @@ class Human1:
 
 if CONFIG['use_frame'] == 'paddle':
     try:
-        policy_value_net = PolicyValueNet(model_file='current_policy.model')
+        policy_value_net = PolicyValueNet(model_file=CONFIG['paddle_model_path'])
         print('已加载训练模型')
     except:
         policy_value_net = PolicyValueNet()
         print('使用初始模型（未训练）')
 elif CONFIG['use_frame'] == 'pytorch':
     try:
-        policy_value_net = PolicyValueNet(model_file='current_policy.pkl')
+        policy_value_net = PolicyValueNet(model_file=CONFIG['pytorch_model_path'])
         print('已加载训练模型')
     except:
         policy_value_net = PolicyValueNet()

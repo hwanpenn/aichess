@@ -183,7 +183,9 @@ class TrainPipeline:
                             time.sleep(5)
 
                 print('step i {}: '.format(self.iters))
-                if len(self.data_buffer) > self.batch_size:
+                data_count = len(self.data_buffer)
+                print(f'当前数据样本数: {data_count}, 需要: {self.batch_size}')
+                if data_count > self.batch_size:
                     loss, entropy = self.policy_updata()
                     # 保存模型
                     if CONFIG['use_frame'] == 'paddle':
@@ -192,8 +194,12 @@ class TrainPipeline:
                         self.policy_value_net.save_model(CONFIG['pytorch_model_path'])
                     else:
                         print('不支持所选框架')
+                else:
+                    print(f'数据量不足，跳过本次训练（需要至少 {self.batch_size + 1} 个样本，当前有 {data_count} 个）')
 
-                time.sleep(CONFIG['train_update_interval'])  # 每10分钟更新一次模型
+                if CONFIG['train_update_interval'] > 0:
+                    time.sleep(CONFIG['train_update_interval'])  # 模型更新间隔时间
+                # 如果 train_update_interval 为 0，则立即继续下一次循环
 
                 if (i + 1) % self.check_freq == 0:
                     # win_ratio = self.policy_evaluate()
@@ -215,10 +221,10 @@ class TrainPipeline:
 
 
 if CONFIG['use_frame'] == 'paddle':
-    training_pipeline = TrainPipeline(init_model='current_policy.model')
+    training_pipeline = TrainPipeline(init_model=CONFIG['paddle_model_path'])
     training_pipeline.run()
 elif CONFIG['use_frame'] == 'pytorch':
-    training_pipeline = TrainPipeline(init_model='current_policy.pkl')
+    training_pipeline = TrainPipeline(init_model=CONFIG['pytorch_model_path'])
     training_pipeline.run()
 else:
     print('暂不支持您选择的框架')
